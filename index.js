@@ -17,7 +17,7 @@ argv = argv
   .argv;
 
 // Get full path to output directory
-var outputDirectoryPath = path.resolve(__dirname, argv.output);
+var outputDirectoryPath = path.resolve(argv.output);
 
 // Try to read the output directory, create it if it doesn't exist.
 try {
@@ -175,7 +175,7 @@ data.db[0].data.posts.forEach(function(post) {
   });
 
   // Get full path to the file we're going to write.
-  var filePath = path.resolve(argv.output, fileName);
+  var filePath = path.resolve(outputDirectoryPath, fileName);
 
   // Write file.
   fs.writeFileSync(filePath, fileContent, {encoding: 'utf8'});
