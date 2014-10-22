@@ -1,16 +1,23 @@
+#!/usr/bin/env node
+
 var fs = require('fs');
 var path = require('path');
 var _ = require('lodash');
+var argv = require('yargs');
 
-/**
- * Where we should output the built files.
- * @type {string}
- * @const
- */
-var outputDirectory = 'output';
+argv = argv
+  .usage('Migrate your Ghost database to markdown files.')
+  .example('$0 ghost-export.json', 'Migrates export file.')
+  .options('o', {
+    describe: 'Output directory.',
+    alias: 'output',
+    default: 'ghost-to-md-output'
+  })
+  .demand(1)
+  .argv;
 
 // Get full path to output directory
-var outputDirectoryPath = path.resolve(__dirname, outputDirectory);
+var outputDirectoryPath = path.resolve(__dirname, argv.output);
 
 // Try to read the output directory, create it if it doesn't exist.
 try {
@@ -19,40 +26,9 @@ try {
   fs.mkdirSync(outputDirectoryPath);
 }
 
-/**
- * File name of this file so we can exclude it when finding the export file.
- * Should return a string of just the file name.
- * Such as 'index.js'.
- * @type {string}
- */
-var thisFileName = __filename.replace(__dirname + '/', '');
-
-/**
- * Find the export file name.  This assumes it's the only other file in the
- * directory.
- * @type {string} Should be something like 'my-blog.ghost.2014-10-22.json'.
- */
-var exportFile = fs.readdirSync(__dirname).filter(function(name) {
-  return name !== thisFileName && name.indexOf('json') > 1;
-})[0];
-
-/**
- * The process argument value.
- * @type {String}
- * @const
- */
-var fileArg = '--file';
-
-// Find the file name of the export file from passed in arguments.
-process.argv.forEach(function(arg) {
-  if (arg.indexOf(fileArg) > -1) {
-    exportFile = arg.split('=')[1];
-  }
-});
-
 // Try to read the export file from the file system and parse it as JSON data.
 try {
-  var data = JSON.parse(fs.readFileSync(path.resolve(exportFile), {encoding: 'utf8'}));
+  var data = JSON.parse(fs.readFileSync(path.resolve(argv._[0]), {encoding: 'utf8'}));
 } catch (e) {
   console.error('Could not parse export file:', e.path);
   return 0;
@@ -62,7 +38,7 @@ try {
  * Read in template string.
  * @type {string}
  */
-var templateStr = fs.readFileSync('template.md', {encoding: 'utf8'});
+var templateStr = fs.readFileSync(path.resolve(__dirname, 'template.md'), {encoding: 'utf8'});
 
 /**
  * Precompile post template.
@@ -199,7 +175,7 @@ data.db[0].data.posts.forEach(function(post) {
   });
 
   // Get full path to the file we're going to write.
-  var filePath = path.resolve(outputDirectory, fileName);
+  var filePath = path.resolve(argv.output, fileName);
 
   // Write file.
   fs.writeFileSync(filePath, fileContent, {encoding: 'utf8'});
