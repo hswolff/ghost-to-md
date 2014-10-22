@@ -1,0 +1,25 @@
+{
+  "name": "ghost-to-md",
+  "version": "1.0.0",
+  "description": "Migrate your Ghost SQLite database to markdown files for use with a static site generator.",
+  "main": "index.js",
+  "scripts": {
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/hswolff/ghost-to-md.git"
+  },
+  "keywords": [
+    "ghost",
+    "markdown",
+    "md",
+    "jekyll",
+    "metalsmith",
+    "blog"
+  ],
+  "author": "Harry Wolff",
+  "license": "MIT",
+  "devDependencies": {
+    "lodash": "^2.4.1"
+  }
+}
