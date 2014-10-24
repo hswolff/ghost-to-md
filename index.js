@@ -13,6 +13,10 @@ argv = argv
     alias: 'output',
     default: 'ghost-to-md-output'
   })
+  .options('t', {
+    describe: 'Template file.',
+    alias: 'template'
+  })
   .demand(1)
   .argv;
 
@@ -35,10 +39,19 @@ try {
 }
 
 /**
+ * The path to the template file.  If it's given as an argument than its
+ * relative to where the script is being ran from, otherwise we take it
+ * from this script's location.
+ * @type {string}
+ */
+var templatePath = argv.template ? path.resolve(argv.template) :
+                                   path.resolve(__dirname, 'template.md');
+
+/**
  * Read in template string.
  * @type {string}
  */
-var templateStr = fs.readFileSync(path.resolve(__dirname, 'template.md'), {encoding: 'utf8'});
+var templateStr = fs.readFileSync(templatePath, {encoding: 'utf8'});
 
 /**
  * Precompile post template.
