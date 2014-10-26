@@ -83,18 +83,18 @@ function arrayToMap(array, mapKey) {
  */
 function formatDate(timeStr) {
   function ensure0Padding(val) {
-    return String(val).length === 1 ? '0' + val : val;
+    return val < 10 ? '0' + val : val;
   }
 
   var publishedDate = new Date(timeStr);
 
-  var parts = [
+  var date = [
     publishedDate.getFullYear(),
     ensure0Padding(publishedDate.getMonth() + 1),
     ensure0Padding(publishedDate.getDate())
   ];
 
-  return parts.join('-');
+  return date.join('-');
 }
 
 /**
@@ -170,6 +170,12 @@ data.db[0].data.posts.forEach(function(post) {
       post.tags.push(tag.name);
     }
   });
+
+  post.title = post.title.indexOf(':') > 1 ? '"' + post.title + '"' : post.title;
+
+  // Convert to ISO string.
+  post.publishedAt = new Date(post.published_at).toISOString();
+  post.updatedAt = new Date(post.updated_at).toISOString();
 
   post.formattedDate = formatDate(post.published_at);
 
