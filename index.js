@@ -4,6 +4,7 @@ var fs = require('fs');
 var path = require('path');
 var _ = require('lodash');
 var argv = require('yargs');
+var h2m = require('h2m');
 
 argv = argv
   .usage('Migrate your Ghost database to markdown files.')
@@ -191,7 +192,7 @@ data.db[0].data.posts.forEach(function(post) {
     fileName = 'page-' + post.slug + '.md';
   }
   // Currently the ghost export file does not include markdown
-  post.markdown = post.plaintext;
+  post.markdown = h2m(post.html);
   // File content.
   var fileContent = postTemplate({
     post: post
