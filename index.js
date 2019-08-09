@@ -4,6 +4,7 @@ var fs = require('fs');
 var path = require('path');
 var _ = require('lodash');
 var argv = require('yargs');
+var h2m = require('h2m');
 
 argv = argv
   .usage('Migrate your Ghost database to markdown files.')
@@ -17,8 +18,7 @@ argv = argv
     describe: 'Template file.',
     alias: 'template'
   })
-  .demand(1)
-  .argv;
+  .demand(1).argv;
 
 // Get full path to output directory
 var outputDirectoryPath = path.resolve(argv.output);
@@ -32,7 +32,9 @@ try {
 
 // Try to read the export file from the file system and parse it as JSON data.
 try {
-  var data = JSON.parse(fs.readFileSync(path.resolve(argv._[0]), {encoding: 'utf8'}));
+  var data = JSON.parse(
+    fs.readFileSync(path.resolve(argv._[0]), { encoding: 'utf8' })
+  );
 } catch (e) {
   console.error('Could not parse export file:', e.path);
   return 0;
@@ -44,14 +46,15 @@ try {
  * from this script's location.
  * @type {string}
  */
-var templatePath = argv.template ? path.resolve(argv.template) :
-                                   path.resolve(__dirname, 'template.md');
+var templatePath = argv.template
+  ? path.resolve(argv.template)
+  : path.resolve(__dirname, 'template.md');
 
 /**
  * Read in template string.
  * @type {string}
  */
-var templateStr = fs.readFileSync(templatePath, {encoding: 'utf8'});
+var templateStr = fs.readFileSync(templatePath, { encoding: 'utf8' });
 
 /**
  * Precompile post template.
@@ -171,7 +174,8 @@ data.db[0].data.posts.forEach(function(post) {
     }
   });
 
-  post.title = post.title.indexOf(':') > 1 ? '"' + post.title + '"' : post.title;
+  post.title =
+    post.title.indexOf(':') > 1 ? '"' + post.title + '"' : post.title;
 
   // Convert to ISO string.
   post.publishedAt = new Date(post.published_at).toISOString();
@@ -187,7 +191,8 @@ data.db[0].data.posts.forEach(function(post) {
   if (post.page) {
     fileName = 'page-' + post.slug + '.md';
   }
-
+  // Currently the ghost export file does not include markdown
+  post.markdown = h2m(post.html);
   // File content.
   var fileContent = postTemplate({
     post: post
@@ -197,5 +202,5 @@ data.db[0].data.posts.forEach(function(post) {
   var filePath = path.resolve(outputDirectoryPath, fileName);
 
   // Write file.
-  fs.writeFileSync(filePath, fileContent, {encoding: 'utf8'});
+  fs.writeFileSync(filePath, fileContent, { encoding: 'utf8' });
 });
