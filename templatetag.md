@@ -14,5 +14,5 @@ ${tag.description}
 Pages: 
 
 <% tag.pages.forEach(function(page){ %>
-* [<%= page %>](<%= page %>)
+* [<%= page %>](../<%= page %>.md)
 <% }); %>

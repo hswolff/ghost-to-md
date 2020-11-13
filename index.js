@@ -16,22 +16,27 @@ argv = argv
     alias: 'output',
     default: 'ghost-to-md-output'
   })
-  .options('t', {
-    describe: 'Template file.',
+  .options('p', {
+    describe: 'Template Post File.',
     alias: 'template'
   })
-  .options('', {
-    describe: 'Template Tag file.',
+  .options('t', {
+    describe: 'Template Tag File.',
     alias: 'templatetag'
   })
-  .options('c',{
-    describe: 'Collection subfolders. (not yet)',
-    alias: 'cellections',
+  .options('i', {
+    describe: 'Download External Images (Eventually base website "https://www.example.com")',
+    alias: 'downloadimages',
     default: false
-  })
-  .options('d', {
-    describe: 'Download External Files. (not yet)',
-    alias: 'download',
+  })/*
+  .options('d',{
+    describe: "Include Drafts",
+    alias: 'drafts',
+    default: false
+  })*/
+  .options('f',{
+    describe: 'Subfolder Grouping Logic. (not yet)',
+    alias: 'subfolder',
     default: false
   })
   .options('s', {
@@ -40,6 +45,32 @@ argv = argv
     default: false
   })
   .demand(1).argv;
+
+
+
+function checkRelativeSrc(imgSrc) {
+  if (imgSrc[0] == "/") {
+    return argv.downloadimages + imgSrc;
+  }
+  return imgSrc;
+}
+
+async function downloadImage(inUrl, outFilePath) {
+  const getBuffer = bent('buffer');
+  inUrl = checkRelativeSrc(inUrl);
+  if (!fs.existsSync(outFilePath)) 
+  {
+    try {
+      let buffer = await getBuffer(inUrl);
+      fs.writeFileSync(outFilePath, buffer);
+    } catch (e) {
+      console.log(["Can't download",inUrl, outFilePath,"maybe unpublished post"]);
+      // console.log(inUrl);
+      fs.writeFileSync(outFilePath+".txt",inUrl);
+    }
+  }
+}
+
 
 /**
  * Try to read the directory, create it if it doesn't exist.
@@ -79,7 +110,7 @@ var templatePath = argv.template
   ? path.resolve(argv.template)
   : path.resolve(__dirname, 'template.md');
 
-  var templateTagPath = argv.templatetag
+var templateTagPath = argv.templatetag
   ? path.resolve(argv.templatetag)
   : path.resolve(__dirname, 'templatetag.md');
 
@@ -199,7 +230,33 @@ for (index in tags) {
   tags[index]["pages"] = [];
 }
 
+
 /**
+id
+uuid
+title
+slug
+mobiledoc
+html
+comment_id
+plaintext
+feature_image
+featured
+type
+status
+locale
+visibility
+send_email_when_published
+author_id
+created_at
+updated_at
+published_at
+custom_excerpt
+codeinjection_head
+codeinjection_foot
+custom_template
+canonical_url
+
  { id: 2,
   uuid: '6a583a87-7f37-4b51-976a-cd6b5b809d56',
   title: 'Hello world!',
@@ -221,12 +278,15 @@ for (index in tags) {
   published_at: 1263372815000,
   published_by: 1 }
  */
-data.db[0].data.posts.forEach(async function(post) {
+data.db[0].data.posts.forEach(function(post) {
   // Format the file name we're going to save.
   // Will be in the form of '2014-10-11-post-slug.md';
   // var fileName = post.formattedDate + '-' + post.slug + '.md';
-  var basename = (post.draft) ? "drafts/":"";  
-  basename += (post.page) ? "pages/": "posts/";
+  // for (i in post) console.log(i);
+  //console.log([post.slug,post.visibility]);
+  //if (!post.visibility && !argv.drafts) return; // don't process drafts unless asked
+  var basename = (post.visibility) ? "": "drafts/";  
+  basename += (post.type) + "/";
   basename += post.slug;
   var fileName = basename + "/index.md";
 
@@ -266,35 +326,34 @@ data.db[0].data.posts.forEach(async function(post) {
   var outFolderPath =  outputDirectoryPath + "/" + basename + "/";
   var outFolderImagesRelativePath = "images/";
   var outFolderImagesPath = outFolderPath + outFolderImagesRelativePath;
-  if(post.feature_image) {
-    imgUrls.push(post.feature_image);
-    post.feature_image = "./" + outFolderImagesRelativePath + imgFileName(post.feature_image);
-  }
-  
   readOrMkDir(outFolderPath);
-  readOrMkDir(outFolderImagesPath);
-
-  for(let i in imgUrls) {
-    var inUrl = imgUrls[i];
-    var outFilePath = outFolderImagesPath + imgFileName(inUrl);
-    if (post.html) {
-      post.html = post.html.replace(inUrl,outFilePath);
+  if (argv.downloadimages) {
+    readOrMkDir(outFolderImagesPath);
+    if(post.feature_image) {
+      imgUrls.push(post.feature_image);
+      post.feature_image = "./" + outFolderImagesRelativePath + imgFileName(post.feature_image);
     }
-
-    if (inUrl[0] == "/") {
-       inUrl = "https://en.mann.fr" + inUrl;
-    }
-
-    const getBuffer = bent('buffer');
-    if (!fs.existsSync(outFilePath)) 
-    {
-      try {
-        let buffer = await getBuffer(inUrl);
-        fs.writeFileSync(outFilePath, buffer);
-      } catch (e) {
-        console.log(["Can't download",inUrl, post.slug,"maybe unpublished post"]);
-        fs.writeFileSync(outFilePath+".txt",inUrl);
+    for(let i in imgUrls) {
+      var inUrl = imgUrls[i];
+      var outFilePath = outFolderImagesPath + imgFileName(inUrl);
+      if (post.html) {
+        post.html = post.html.replace(inUrl,outFilePath);
       }
+      downloadImage(inUrl,outFilePath);
+      /*
+      const getBuffer = bent('buffer');
+      if (!fs.existsSync(outFilePath)) 
+      {
+        try {
+          let buffer = await getBuffer(inUrl);
+          fs.writeFileSync(outFilePath, buffer);
+        } catch (e) {
+          console.log(["Can't download",inUrl, post.slug,"maybe unpublished post"]);
+          fs.writeFileSync(outFilePath+".txt",inUrl);
+        }
+      }
+      */
+
     }
   }
   
