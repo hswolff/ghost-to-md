@@ -5,6 +5,8 @@ var path = require('path');
 var _ = require('lodash');
 var argv = require('yargs');
 var h2m = require('h2m');
+var htmlparser2 = require("htmlparser2");
+const bent = require('bent')
 
 argv = argv
   .usage('Migrate your Ghost database to markdown files.')
@@ -18,17 +20,44 @@ argv = argv
     describe: 'Template file.',
     alias: 'template'
   })
+  .options('', {
+    describe: 'Template Tag file.',
+    alias: 'templatetag'
+  })
+  .options('c',{
+    describe: 'Collection subfolders. (not yet)',
+    alias: 'cellections',
+    default: false
+  })
+  .options('d', {
+    describe: 'Download External Files. (not yet)',
+    alias: 'download',
+    default: false
+  })
+  .options('s', {
+    describe: 'Sidecar Files. (not yet)',
+    alias: 'sidecar',
+    default: false
+  })
   .demand(1).argv;
+
+/**
+ * Try to read the directory, create it if it doesn't exist.
+ * @param {String} path 
+ */
+function readOrMkDir(path) {
+  try {
+    fs.readdirSync(path);
+  } catch (e) {
+    fs.mkdirSync(path,{recursive: true});
+  }
+}
 
 // Get full path to output directory
 var outputDirectoryPath = path.resolve(argv.output);
 
 // Try to read the output directory, create it if it doesn't exist.
-try {
-  fs.readdirSync(outputDirectoryPath);
-} catch (e) {
-  fs.mkdirSync(outputDirectoryPath);
-}
+readOrMkDir(outputDirectoryPath);
 
 // Try to read the export file from the file system and parse it as JSON data.
 try {
@@ -50,17 +79,44 @@ var templatePath = argv.template
   ? path.resolve(argv.template)
   : path.resolve(__dirname, 'template.md');
 
+  var templateTagPath = argv.templatetag
+  ? path.resolve(argv.templatetag)
+  : path.resolve(__dirname, 'templatetag.md');
+
 /**
  * Read in template string.
  * @type {string}
  */
 var templateStr = fs.readFileSync(templatePath, { encoding: 'utf8' });
+var templateTagStr = fs.readFileSync(templateTagPath, { encoding: 'utf8' });
 
 /**
  * Precompile post template.
  * @type {Function}
  */
 var postTemplate = _.template(templateStr);
+var tagTemplate = _.template(templateTagStr);
+
+/**
+ * Extracts all URLs from a HTML string
+ */
+function extractImgUrls(htmlString) {
+  var urls = [];
+  const parser = new htmlparser2.Parser({
+    onopentag(name, attribs) {
+        if (name === "img") {
+            urls.push(attribs.src);
+        }
+      }
+  });
+  parser.write(htmlString);
+  parser.end();
+  return urls
+}
+
+function imgFileName(url) {
+  return url.split('/').pop().split('?').shift()
+}
 
 /**
  * Converts an array to a map.
@@ -139,6 +195,9 @@ data.db[0].data.posts_tags.forEach(function(item) {
    hidden: 0 }
  */
 var tags = arrayToMap(data.db[0].data.tags);
+for (index in tags) {
+  tags[index]["pages"] = [];
+}
 
 /**
  { id: 2,
@@ -162,7 +221,15 @@ var tags = arrayToMap(data.db[0].data.tags);
   published_at: 1263372815000,
   published_by: 1 }
  */
-data.db[0].data.posts.forEach(function(post) {
+data.db[0].data.posts.forEach(async function(post) {
+  // Format the file name we're going to save.
+  // Will be in the form of '2014-10-11-post-slug.md';
+  // var fileName = post.formattedDate + '-' + post.slug + '.md';
+  var basename = (post.draft) ? "drafts/":"";  
+  basename += (post.page) ? "pages/": "posts/";
+  basename += post.slug;
+  var fileName = basename + "/index.md";
+
   var postTags = postsTags[post.id] || [];
   post.tags = [];
 
@@ -170,7 +237,8 @@ data.db[0].data.posts.forEach(function(post) {
   postTags.forEach(function(tagId) {
     var tag = tags[tagId];
     if (tag) {
-      post.tags.push(tag.name);
+      post.tags.push(tag.slug);
+      tags[tagId]["pages"].push(basename);
     }
   });
 
@@ -183,14 +251,53 @@ data.db[0].data.posts.forEach(function(post) {
 
   post.formattedDate = formatDate(post.published_at);
 
-  // Format the file name we're going to save.
-  // Will be in the form of '2014-10-11-post-slug.md';
-  var fileName = post.formattedDate + '-' + post.slug + '.md';
+
+  // var foldername = (post.tags && post.tags[0])?post.tags[0].slug :"";
+
+
 
   // If this entry is a page then rename the file name.
-  if (post.page) {
-    fileName = 'page-' + post.slug + '.md';
+  // if (post.page) {
+    // fileName = 'page-' + post.slug + '.md';
+  //}
+
+  // Try to read the output directory, create it if it doesn't exist.
+  var imgUrls = extractImgUrls(post.html);
+  var outFolderPath =  outputDirectoryPath + "/" + basename + "/";
+  var outFolderImagesRelativePath = "images/";
+  var outFolderImagesPath = outFolderPath + outFolderImagesRelativePath;
+  if(post.feature_image) {
+    imgUrls.push(post.feature_image);
+    post.feature_image = "./" + outFolderImagesRelativePath + imgFileName(post.feature_image);
   }
+  
+  readOrMkDir(outFolderPath);
+  readOrMkDir(outFolderImagesPath);
+
+  for(let i in imgUrls) {
+    var inUrl = imgUrls[i];
+    var outFilePath = outFolderImagesPath + imgFileName(inUrl);
+    if (post.html) {
+      post.html = post.html.replace(inUrl,outFilePath);
+    }
+
+    if (inUrl[0] == "/") {
+       inUrl = "https://en.mann.fr" + inUrl;
+    }
+
+    const getBuffer = bent('buffer');
+    if (!fs.existsSync(outFilePath)) 
+    {
+      try {
+        let buffer = await getBuffer(inUrl);
+        fs.writeFileSync(outFilePath, buffer);
+      } catch (e) {
+        console.log(["Can't download",inUrl, post.slug,"maybe unpublished post"]);
+        fs.writeFileSync(outFilePath+".txt",inUrl);
+      }
+    }
+  }
+  
   // Currently the ghost export file does not include markdown
   post.markdown = h2m(post.html);
   // File content.
@@ -203,4 +310,46 @@ data.db[0].data.posts.forEach(function(post) {
 
   // Write file.
   fs.writeFileSync(filePath, fileContent, { encoding: 'utf8' });
+});
+
+readOrMkDir(path.resolve(outputDirectoryPath, "tags"));
+
+data.db[0].data.tags.forEach(async function(tag) {
+  var baseRelDir = "tags/";
+  var baseFilename = tag["slug"];
+  // var fileName = basename + ".md";
+  // Get full path to the file we're going to write.
+  // var filePath = path.resolve(outputDirectoryPath, fileName);
+  // readOrMkDir(filePath);
+  if (tag["feature_image"]) {
+    var imgOutFilename = baseFilename + "." + imgFileName(tag["feature_image"]).split(".").pop(); 
+    var imgOutPath = outputDirectoryPath + "/" + baseRelDir + imgOutFilename;
+    var imgInPath = tag["feature_image"];
+    if (imgInPath[0] == "/") {
+      imgInPath = "https://en.mann.fr" + imgInPath;
+    }
+    const getBuffer = bent('buffer');
+    if (!fs.existsSync(imgOutPath)) 
+    {
+      try {
+        let buffer = await getBuffer(imgInPath);
+        fs.writeFileSync(imgOutPath, buffer);
+      } catch (e) {
+        console.log(["Can't download",imgInPath, post.slug,"maybe unpublished tag"]);
+        fs.writeFileSync(imgOutPath+".txt",imgInPath);
+      }
+    }
+    tag["feature_image"] = "./" + imgOutFilename;
+  }
+    // File content.
+    var fileContent = "Not Quite";
+    try {
+      fileContent = tagTemplate({
+        tag: tag
+      });
+    } catch (e) {
+      console.log(tag);
+      fileContent = "Not Quite";
+    }
+  fs.writeFileSync(outputDirectoryPath + "/" + baseRelDir + baseFilename + ".md", fileContent, { encoding: 'utf8' });
 });
